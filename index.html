@@ -25,20 +25,30 @@
     </div>
 
     <form id="form-welcome" class="welcome-form" autocomplete="off">
+      <div id="invite-box" class="invite-box" hidden>
+        <span>Tu es invité(e) dans le salon</span>
+        <b id="invite-box-code">——</b>
+      </div>
+
       <label class="field">
         <span>Ton prénom</span>
         <input id="input-name" type="text" maxlength="30" placeholder="ex. Alex" required>
       </label>
 
-      <button type="submit" id="btn-create" class="btn btn-primary" data-action="create">Créer notre salon</button>
+      <button type="submit" id="btn-join-invite" class="btn btn-primary" data-action="join" hidden>Rejoindre le salon</button>
 
-      <div class="divider"><span>ou rejoindre</span></div>
+      <div id="welcome-default" class="welcome-default">
+        <button type="submit" id="btn-create" class="btn btn-primary" data-action="create">Créer notre salon</button>
 
-      <div class="join-row">
-        <input id="input-code" type="text" maxlength="6" placeholder="CODE" autocapitalize="characters" spellcheck="false">
-        <button type="submit" id="btn-join" class="btn btn-secondary" data-action="join">Rejoindre</button>
+        <div class="divider"><span>ou rejoindre avec un code</span></div>
+
+        <div class="join-row">
+          <input id="input-code" type="text" maxlength="6" placeholder="CODE" autocapitalize="characters" spellcheck="false">
+          <button type="submit" id="btn-join" class="btn btn-secondary" data-action="join">Rejoindre</button>
+        </div>
       </div>
       <p id="welcome-error" class="form-error" role="alert"></p>
+      <button type="button" id="btn-not-invited" class="btn btn-ghost" hidden>Créer mon propre salon à la place</button>
     </form>
   </section>
 
@@ -121,7 +131,7 @@
         <div class="card-block">
           <div class="block-title">Filtres communs <span class="muted">· partagés avec ta moitié</span></div>
 
-          <div class="filter-label">Plateformes</div>
+          <div class="filter-label">Plateformes · films inclus dans l'abonnement (aucune sélection = les 3)</div>
           <div id="filter-providers" class="chips"><span class="muted">Chargement…</span></div>
 
           <div class="filter-label">Genres</div>
@@ -153,7 +163,7 @@
         </div>
 
         <div class="card-block">
-          <button id="btn-leave" class="btn btn-danger">Quitter le salon</button>
+          <button id="btn-leave" class="btn btn-danger">Changer de salon</button>
         </div>
         <p class="credits">Données films : <a href="https://www.themoviedb.org" target="_blank" rel="noopener">TMDB</a>. Ce produit utilise l'API TMDB sans être approuvé par TMDB.</p>
       </div>

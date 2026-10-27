@@ -1,5 +1,5 @@
 // Network first for the app shell so updates show up right away; cache as offline fallback.
-const CACHE = 'swipeflix-v1';
+const CACHE = 'swipeflix-v2';
 const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'config.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png'];
 
 self.addEventListener('install', (e) => {

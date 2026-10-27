@@ -4,8 +4,9 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: false } });
 
 const IMG = 'https://image.tmdb.org/t/p/';
-// Netflix, Prime Video, Disney+, Canal+, Apple TV+, Max, Paramount+, France TV, Arte
-const PROVIDER_IDS = [8, 119, 337, 381, 350, 1899, 531, 236, 234];
+// Only movies included in these French subscriptions: Netflix, Prime Video, Canal+
+const PROVIDER_IDS = [8, 119, 381];
+const PROVIDER_NAMES = { 8: 'Netflix', 119: 'Prime Video', 381: 'Canal+' };
 const DEFAULT_FILTERS = { providers: [], genres: [], sort: 'popularity', minRating: 0, yearFrom: 0 };
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -112,7 +113,11 @@ function applyState(st, initial) {
 
 /* ---------- Filters & deck ---------- */
 
-const normFilters = (f) => ({ ...DEFAULT_FILTERS, ...(f || {}) });
+const normFilters = (f) => {
+  const n = { ...DEFAULT_FILTERS, ...(f || {}) };
+  n.providers = n.providers.filter((id) => PROVIDER_IDS.includes(id));
+  return n;
+};
 const filtersKey = (f) => {
   const n = normFilters(f);
   return JSON.stringify({ ...n, genres: [...n.genres].sort(), providers: [...n.providers].sort() });
@@ -128,10 +133,9 @@ function discoverParams(f, page) {
     p['primary_release_date.lte'] = new Date().toISOString().slice(0, 10);
   }
   if (f.genres.length) p.with_genres = f.genres.join('|');
-  if (f.providers.length) {
-    p.with_watch_providers = f.providers.join('|');
-    p.with_watch_monetization_types = 'flatrate|free|ads';
-  }
+  // No platform selected means all three; always subscription-only, never rent or buy
+  p.with_watch_providers = (f.providers.length ? f.providers : PROVIDER_IDS).join('|');
+  p.with_watch_monetization_types = 'flatrate';
   if (f.minRating) p['vote_average.gte'] = f.minRating;
   if (f.yearFrom) p['primary_release_date.gte'] = `${f.yearFrom}-01-01`;
   return p;
@@ -450,7 +454,7 @@ function sheetHtml(m, d) {
   const backdrop = (d?.backdrop_path || m.backdrop_path) ? `${IMG}w780${d?.backdrop_path || m.backdrop_path}` : `${IMG}w500${m.poster_path}`;
   const extra = d?.runtime ? [`<span class="pill">${runtime(d.runtime)}</span>`] : [];
   const fr = d?.['watch/providers']?.results?.FR;
-  const subs = fr?.flatrate || [];
+  const subs = (fr?.flatrate || []).filter((p) => PROVIDER_IDS.includes(p.provider_id));
   const trailer = (d?.videos?.results || []).find((v) => v.site === 'YouTube' && v.type === 'Trailer')
     || (d?.videos?.results || []).find((v) => v.site === 'YouTube');
 
@@ -458,7 +462,7 @@ function sheetHtml(m, d) {
   if (d) {
     providers = subs.length
       ? `<div class="providers">${subs.map((p) => `<img src="${IMG}w92${p.logo_path}" alt="${esc(p.provider_name)}" title="${esc(p.provider_name)}">`).join('')}</div>`
-      : `<p class="muted">Pas disponible en streaming par abonnement en France${fr?.link ? ` · <a href="${esc(fr.link)}" target="_blank" rel="noopener">voir les options</a>` : ''}.</p>`;
+      : '<p class="muted">Plus inclus dans Netflix, Prime Video ou Canal+ en ce moment.</p>';
   }
 
   return `
@@ -510,7 +514,7 @@ async function loadCatalog() {
     const [g, p] = await Promise.all([tmdb('/genre/movie/list'), tmdb('/watch/providers/movie', { watch_region: 'FR' })]);
     S.genres = new Map((g.genres || []).map((x) => [x.id, x.name]));
     const all = p.results || [];
-    S.providers = PROVIDER_IDS.map((id) => all.find((x) => x.provider_id === id)).filter(Boolean);
+    S.providers = PROVIDER_IDS.map((id) => all.find((x) => x.provider_id === id) || { provider_id: id, logo_path: null });
   } catch (e) {
     console.error(e);
   }
@@ -519,10 +523,9 @@ async function loadCatalog() {
 
 function renderFilters() {
   const f = S.filters;
-  $('#filter-providers').innerHTML = S.providers.length
-    ? S.providers.map((p) => `<button class="chip ${f.providers.includes(p.provider_id) ? 'active' : ''}" data-provider="${p.provider_id}">
-        <img src="${IMG}w92${p.logo_path}" alt="">${esc(p.provider_name)}</button>`).join('')
-    : '<span class="muted">Impossible de charger les plateformes.</span>';
+  const providers = S.providers.length ? S.providers : PROVIDER_IDS.map((id) => ({ provider_id: id, logo_path: null }));
+  $('#filter-providers').innerHTML = providers.map((p) => `<button class="chip ${f.providers.includes(p.provider_id) ? 'active' : ''}" data-provider="${p.provider_id}">
+      ${p.logo_path ? `<img src="${IMG}w92${p.logo_path}" alt="">` : ''}${PROVIDER_NAMES[p.provider_id]}</button>`).join('');
   $('#filter-genres').innerHTML = S.genres.size
     ? [...S.genres].map(([id, name]) => `<button class="chip ${f.genres.includes(id) ? 'active' : ''}" data-genre="${id}">${esc(name)}</button>`).join('')
     : '<span class="muted">Impossible de charger les genres.</span>';
@@ -586,15 +589,43 @@ function toast(msg) {
   toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
 }
 
-function showWelcome(error = '', code = '') {
+let inviteCode = '';
+
+// With an invite code the screen only offers to join that room
+function showWelcome(error = '', code = '', invited = false) {
+  inviteCode = invited ? code : '';
   $('#screen-main').hidden = true;
   $('#screen-welcome').hidden = false;
   $('#input-name').value = store.get('name', '');
   $('#input-code').value = code;
   $('#welcome-error').textContent = error;
+  $('#invite-box').hidden = !inviteCode;
+  $('#invite-box-code').textContent = inviteCode;
+  $('#btn-join-invite').hidden = !inviteCode;
+  $('#btn-not-invited').hidden = !inviteCode;
+  $('#welcome-default').hidden = !!inviteCode;
+}
+
+// Everything swiped, liked or matched belongs to one room: start clean on every room change
+function clearRoom() {
+  if (S.channel) sb.removeChannel(S.channel);
+  Object.assign(S, {
+    channel: null, code: null, me: '', partner: null, partnerOnline: false,
+    filters: { ...DEFAULT_FILTERS }, swiped: new Set(), liked: new Set(), partnerLikes: [], pendingPartner: [],
+    deck: [], seen: new Set(), page: 0, cleanPage: 0, exhausted: false, loading: false, loadError: false,
+    last: null, matches: [], matchFilter: 'towatch',
+  });
+  S.deckGen++;
+  cardEls.clear();
+  $('#deck').innerHTML = '';
+  closeSheet();
+  $('#match-overlay').hidden = true;
+  $$('#matches-filter button').forEach((b) => b.classList.toggle('active', b.dataset.value === 'towatch'));
+  renderMatches();
 }
 
 async function enterRoom(code) {
+  clearRoom();
   S.code = code;
   let st;
   try {
@@ -602,9 +633,11 @@ async function enterRoom(code) {
   } catch (e) {
     if (String(e.message).includes('not_member')) {
       store.del('code');
+      S.code = null;
       return showWelcome('Ce salon n’existe plus, crée-en un nouveau.');
     }
-    return showWelcome('Connexion impossible. Vérifie ta connexion puis appuie sur « Rejoindre ».', code);
+    S.code = null;
+    return showWelcome('Connexion impossible. Vérifie ta connexion puis réessaie.', code, true);
   }
   applyState(st, true);
   store.set('code', S.code);
@@ -617,14 +650,9 @@ async function enterRoom(code) {
 }
 
 function leaveRoom() {
-  if (!confirm(`Quitter le salon ? Tu pourras le rejoindre plus tard avec le code ${S.code}.`)) return;
-  if (S.channel) sb.removeChannel(S.channel);
-  S.channel = null;
+  if (!confirm(`Changer de salon ? Tu repartiras de zéro dans le nouveau salon (tu pourras revenir dans celui-ci avec le code ${S.code}).`)) return;
   store.del('code');
-  S.matches = [];
-  S.swiped = new Set();
-  S.liked = new Set();
-  S.last = null;
+  clearRoom();
   showWelcome();
 }
 
@@ -633,9 +661,9 @@ function leaveRoom() {
 $('#form-welcome').addEventListener('submit', async (e) => {
   e.preventDefault();
   const name = $('#input-name').value.trim();
-  const code = $('#input-code').value.trim().toUpperCase();
-  // Pressing Enter in the code field submits with the first button, so check focus first
-  const action = document.activeElement === $('#input-code') ? 'join' : e.submitter?.dataset.action || (code ? 'join' : 'create');
+  const code = inviteCode || $('#input-code').value.trim().toUpperCase();
+  // Enter submits with the first button in the form, so don't trust the submitter alone
+  const action = inviteCode || document.activeElement === $('#input-code') || e.submitter?.id === 'btn-join' ? 'join' : 'create';
   const err = $('#welcome-error');
   if (!name) { err.textContent = 'Indique ton prénom.'; return; }
   if (action === 'join' && code.length !== 6) { err.textContent = 'Le code fait 6 caractères.'; return; }
@@ -657,6 +685,10 @@ $('#form-welcome').addEventListener('submit', async (e) => {
   } finally {
     $$('#form-welcome button').forEach((b) => { b.disabled = false; });
   }
+});
+$('#btn-not-invited').addEventListener('click', () => {
+  history.replaceState(null, '', location.pathname);
+  showWelcome();
 });
 $('#input-code').addEventListener('input', (e) => {
   e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -741,6 +773,6 @@ if (savedCode && (!urlCode || urlCode === savedCode)) {
   history.replaceState(null, '', location.pathname);
   enterRoom(savedCode);
 } else {
-  showWelcome('', urlCode);
+  showWelcome('', urlCode, urlCode.length === 6);
   if (urlCode) $('#input-name').focus();
 }

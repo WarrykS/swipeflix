@@ -68,6 +68,13 @@ a.btn { text-decoration: none; color: inherit; }
 .join-row .btn { flex-shrink: 0; height: 52px; }
 .divider { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 13px; }
 .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.welcome-default { display: flex; flex-direction: column; gap: 14px; }
+.invite-box {
+  display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 16px; border-radius: 18px;
+  background: linear-gradient(135deg, rgba(255, 61, 110, .16), rgba(255, 138, 61, .12));
+  border: 1px solid rgba(255, 61, 110, .3); color: var(--muted); font-size: 14px;
+}
+.invite-box b { color: var(--text); font-size: 28px; letter-spacing: 6px; }
 .form-error { color: var(--nope); text-align: center; min-height: 1.4em; margin: 0; font-size: 14px; }
 
 /* Main layout */
