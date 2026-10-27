@@ -122,7 +122,36 @@ const filtersKey = (f) => {
   const n = normFilters(f);
   return JSON.stringify({ ...n, genres: [...n.genres].sort(), providers: [...n.providers].sort() });
 };
-const pageKey = () => `page:${S.code}:${filtersKey(S.filters)}`;
+const pageKey = () => `pos:${S.code}:${filtersKey(S.filters)}`;
+
+// Seeded RNG: both partners get the same shuffled order, and every room gets a different one
+function seededRandom(str) {
+  let h = 2166136261;
+  for (const c of str) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
+  return () => {
+    h = (h + 0x6d2b79f5) | 0;
+    let t = Math.imul(h ^ (h >>> 15), 1 | h);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function shuffle(arr, rand) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+// The first pages (about the 500 best results for the filters) are visited in random order, then the rest in order
+const SHUFFLED_PAGES = 25;
+function pageOrder(totalPages) {
+  const n = Math.min(totalPages, 500);
+  const pool = Math.min(n, SHUFFLED_PAGES);
+  const head = shuffle(Array.from({ length: pool }, (_, i) => i + 1), seededRandom(`${S.code}|${filtersKey(S.filters)}`));
+  return [...head, ...Array.from({ length: n - pool }, (_, i) => pool + i + 1)];
+}
 
 function discoverParams(f, page) {
   const p = { page, include_adult: false, watch_region: 'FR', sort_by: 'popularity.desc', 'vote_count.gte': 100 };
@@ -161,6 +190,7 @@ function resetDeck() {
   S.exhausted = false;
   S.deck = [];
   S.seen = new Set(S.swiped);
+  S.order = null;
   S.page = S.cleanPage = store.get(pageKey(), 0);
   S.pendingPartner = S.partnerLikes.filter((m) => !S.seen.has(m.id) && fitsFilters(m, S.filters));
   S.pendingPartner.forEach((m) => S.seen.add(m.id));
@@ -186,16 +216,23 @@ async function refill() {
   try {
     let tries = 0;
     while (S.deck.length < 10 && !S.exhausted && tries++ < 8) {
-      const page = S.page + 1;
+      if (!S.order) {
+        const first = await tmdb('/discover/movie', discoverParams(S.filters, 1));
+        if (gen !== S.deckGen) return;
+        S.order = pageOrder(first.total_pages || 0);
+      }
+      if (S.page >= S.order.length) { S.exhausted = true; break; }
+      const page = S.order[S.page];
       const data = await tmdb('/discover/movie', discoverParams(S.filters, page));
       if (gen !== S.deckGen) return;
-      S.page = page;
-      const fresh = (data.results || []).filter((m) => m.poster_path && !S.seen.has(m.id)).map(slim);
+      S.page++;
+      const results = (data.results || []).filter((m) => m.poster_path && !S.seen.has(m.id));
+      const fresh = shuffle(results, seededRandom(`${S.code}|${page}`)).map(slim);
       fresh.forEach((m) => S.seen.add(m.id));
       // Remember pages that are fully swiped so the next launch starts after them
-      if (!fresh.length && page === S.cleanPage + 1) { S.cleanPage = page; store.set(pageKey(), page); }
+      if (!fresh.length && S.page === S.cleanPage + 1) { S.cleanPage = S.page; store.set(pageKey(), S.page); }
       enqueue(fresh);
-      if (page >= Math.min(data.total_pages || 0, 500)) S.exhausted = true;
+      if (S.page >= S.order.length) S.exhausted = true;
       renderDeck();
     }
   } catch (e) {
@@ -612,7 +649,7 @@ function clearRoom() {
   Object.assign(S, {
     channel: null, code: null, me: '', partner: null, partnerOnline: false,
     filters: { ...DEFAULT_FILTERS }, swiped: new Set(), liked: new Set(), partnerLikes: [], pendingPartner: [],
-    deck: [], seen: new Set(), page: 0, cleanPage: 0, exhausted: false, loading: false, loadError: false,
+    deck: [], seen: new Set(), order: null, page: 0, cleanPage: 0, exhausted: false, loading: false, loadError: false,
     last: null, matches: [], matchFilter: 'towatch',
   });
   S.deckGen++;
