@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0d0d12">
+  <meta name="description" content="Swipez des films à deux et trouvez celui que vous voulez voir tous les deux.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="SwipeFlix">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="stylesheet" href="styles.css">
+  <title>SwipeFlix</title>
+</head>
+<body>
+  <!-- Accueil : créer ou rejoindre un salon -->
+  <section id="screen-welcome" class="screen welcome" hidden>
+    <div class="welcome-hero">
+      <img src="icons/icon.svg" alt="" class="welcome-logo">
+      <h1>Swipe<span>Flix</span></h1>
+      <p>Swipez des films chacun de votre côté.<br>Quand vous aimez le même, c'est un match.</p>
+    </div>
+
+    <form id="form-welcome" class="welcome-form" autocomplete="off">
+      <label class="field">
+        <span>Ton prénom</span>
+        <input id="input-name" type="text" maxlength="30" placeholder="ex. Alex" required>
+      </label>
+
+      <button type="submit" id="btn-create" class="btn btn-primary" data-action="create">Créer notre salon</button>
+
+      <div class="divider"><span>ou rejoindre</span></div>
+
+      <div class="join-row">
+        <input id="input-code" type="text" maxlength="6" placeholder="CODE" autocapitalize="characters" spellcheck="false">
+        <button type="submit" id="btn-join" class="btn btn-secondary" data-action="join">Rejoindre</button>
+      </div>
+      <p id="welcome-error" class="form-error" role="alert"></p>
+    </form>
+  </section>
+
+  <!-- Application -->
+  <section id="screen-main" class="screen main" hidden>
+    <header class="topbar">
+      <div class="brand">Swipe<span>Flix</span></div>
+      <div id="partner-chip" class="partner-chip">
+        <span class="dot"></span><span id="partner-name">…</span>
+      </div>
+    </header>
+
+    <main class="content">
+      <!-- Swipe -->
+      <div id="tab-swipe" class="tab tab-swipe">
+        <div id="invite-banner" class="invite-banner" hidden>
+          <div>
+            <strong>Invite ta moitié</strong>
+            <span>Code du salon : <b id="invite-code">——</b></span>
+          </div>
+          <button class="btn btn-small" data-share>Partager</button>
+        </div>
+
+        <div id="deck" class="deck" aria-live="polite"></div>
+
+        <div id="deck-empty" class="deck-empty" hidden>
+          <div class="empty-emoji">🍿</div>
+          <h3>Plus de films pour ces filtres</h3>
+          <p>Élargissez les genres ou les plateformes pour en découvrir d'autres.</p>
+          <button class="btn btn-secondary" data-goto="settings">Modifier les filtres</button>
+        </div>
+
+        <div class="actions">
+          <button id="btn-undo" class="round small" aria-label="Annuler le dernier swipe" title="Annuler">
+            <svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>
+          </button>
+          <button id="btn-nope" class="round big nope" aria-label="Je passe">
+            <svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+          <button id="btn-like" class="round big like" aria-label="J'aime">
+            <svg viewBox="0 0 24 24" class="fill"><path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.4 3 4.5 6.8 4.5c2.1 0 3.6 1.1 5.2 3 1.6-1.9 3.1-3 5.2-3 3.8 0 5.9 3.9 4.4 7.3C19.5 16.4 12 21 12 21z"/></svg>
+          </button>
+          <button id="btn-info" class="round small" aria-label="Voir la fiche du film" title="Fiche">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Matchs -->
+      <div id="tab-matches" class="tab tab-scroll" hidden>
+        <div class="tab-head">
+          <h2>Vos matchs</h2>
+          <div class="segmented" id="matches-filter">
+            <button data-value="towatch" class="active">À voir</button>
+            <button data-value="watched">Vus</button>
+          </div>
+        </div>
+        <div id="matches-grid" class="matches-grid"></div>
+        <div id="matches-empty" class="list-empty" hidden>
+          <div class="empty-emoji">💞</div>
+          <p>Pas encore de match. Continuez à swiper !</p>
+        </div>
+      </div>
+
+      <!-- Réglages -->
+      <div id="tab-settings" class="tab tab-scroll" hidden>
+        <div class="tab-head"><h2>Réglages</h2></div>
+
+        <div class="card-block">
+          <div class="block-title">Notre salon</div>
+          <div class="room-row">
+            <div>
+              <div class="room-code" id="settings-code">——</div>
+              <div class="muted" id="settings-members"></div>
+            </div>
+            <button class="btn btn-small" data-share>Partager</button>
+          </div>
+        </div>
+
+        <div class="card-block">
+          <div class="block-title">Filtres communs <span class="muted">· partagés avec ta moitié</span></div>
+
+          <div class="filter-label">Plateformes</div>
+          <div id="filter-providers" class="chips"><span class="muted">Chargement…</span></div>
+
+          <div class="filter-label">Genres</div>
+          <div id="filter-genres" class="chips"><span class="muted">Chargement…</span></div>
+
+          <div class="filter-label">Trier par</div>
+          <div class="segmented wide" data-filter="sort">
+            <button data-value="popularity">Populaires</button>
+            <button data-value="rating">Mieux notés</button>
+            <button data-value="recent">Récents</button>
+          </div>
+
+          <div class="filter-label">Note minimale</div>
+          <div class="segmented wide" data-filter="minRating">
+            <button data-value="0">Toutes</button>
+            <button data-value="6">6+</button>
+            <button data-value="7">7+</button>
+            <button data-value="8">8+</button>
+          </div>
+
+          <div class="filter-label">Sortis depuis</div>
+          <div class="segmented wide" data-filter="yearFrom">
+            <button data-value="0">Tous</button>
+            <button data-value="1990">1990</button>
+            <button data-value="2000">2000</button>
+            <button data-value="2010">2010</button>
+            <button data-value="2020">2020</button>
+          </div>
+        </div>
+
+        <div class="card-block">
+          <button id="btn-leave" class="btn btn-danger">Quitter le salon</button>
+        </div>
+        <p class="credits">Données films : <a href="https://www.themoviedb.org" target="_blank" rel="noopener">TMDB</a>. Ce produit utilise l'API TMDB sans être approuvé par TMDB.</p>
+      </div>
+    </main>
+
+    <nav class="tabbar">
+      <button data-tab="swipe" class="active">
+        <svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="3"/><path d="M9 3.5 7.5 1.8M15 3.5l1.5-1.7"/></svg>
+        <span>Swipe</span>
+      </button>
+      <button data-tab="matches">
+        <svg viewBox="0 0 24 24"><path d="M12 20s-7-4.3-8.9-8.6C1.8 8.3 3.7 5 7 5c1.9 0 3.3 1 5 2.8C13.7 6 15.1 5 17 5c3.3 0 5.2 3.3 3.9 6.4C19 15.7 12 20 12 20z"/></svg>
+        <span>Matchs</span>
+        <b id="matches-badge" class="badge" hidden>0</b>
+      </button>
+      <button data-tab="settings">
+        <svg viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>
+        <span>Réglages</span>
+      </button>
+    </nav>
+  </section>
+
+  <!-- Overlay match -->
+  <div id="match-overlay" class="match-overlay" hidden>
+    <div class="hearts" aria-hidden="true"></div>
+    <div class="match-box">
+      <div class="match-title">C'est un match !</div>
+      <img id="match-poster" alt="">
+      <p id="match-text"></p>
+      <button id="btn-match-details" class="btn btn-primary">Voir la fiche</button>
+      <button id="btn-match-close" class="btn btn-ghost">Continuer à swiper</button>
+    </div>
+  </div>
+
+  <!-- Fiche film -->
+  <div id="sheet" class="sheet" hidden>
+    <div class="sheet-backdrop" data-close></div>
+    <div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+      <button class="sheet-close" data-close aria-label="Fermer">×</button>
+      <div id="sheet-body"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status"></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
